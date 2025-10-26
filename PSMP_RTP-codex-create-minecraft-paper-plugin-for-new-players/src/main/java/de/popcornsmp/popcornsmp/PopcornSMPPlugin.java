@@ -15,10 +15,13 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Firework;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -67,6 +70,7 @@ public final class PopcornSMPPlugin extends JavaPlugin implements Listener, Comm
     private final Map<UUID, Location> frozenAnchors = new ConcurrentHashMap<>();
     private final Map<UUID, TeleportRequest> incomingTeleportRequests = new ConcurrentHashMap<>();
     private final Map<UUID, TeleportRequest> outgoingTeleportRequests = new ConcurrentHashMap<>();
+    private final Map<UUID, Location> firstSpawnLocations = new ConcurrentHashMap<>();
 
     @Override
     public void onEnable() {
@@ -85,6 +89,7 @@ public final class PopcornSMPPlugin extends JavaPlugin implements Listener, Comm
         frozenAnchors.clear();
         incomingTeleportRequests.clear();
         outgoingTeleportRequests.clear();
+        firstSpawnLocations.clear();
     }
 
     @EventHandler
@@ -109,6 +114,30 @@ public final class PopcornSMPPlugin extends JavaPlugin implements Listener, Comm
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         event.quitMessage(buildJoinQuitMessage(event.getPlayer(), ChatColor.RED, "VERLASSEN"));
+        firstSpawnLocations.remove(event.getPlayer().getUniqueId());
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onPlayerRespawn(PlayerRespawnEvent event) {
+        Player player = event.getPlayer();
+        Location firstSpawn = firstSpawnLocations.get(player.getUniqueId());
+
+        if (firstSpawn != null && !event.isBedSpawn() && !event.isAnchorSpawn()) {
+            event.setRespawnLocation(firstSpawn);
+        }
+    }
+
+    @EventHandler
+    public void onPlayerDeath(PlayerDeathEvent event) {
+        Player player = event.getPlayer();
+        Location bedSpawn = player.getRespawnLocation();
+
+        if (bedSpawn != null && bedSpawn.getBlock().getType() == Material.AIR) {
+            Location firstSpawn = firstSpawnLocations.get(player.getUniqueId());
+            if (firstSpawn != null) {
+                player.setRespawnLocation(firstSpawn, true);
+            }
+        }
     }
 
     @EventHandler
@@ -388,6 +417,13 @@ public final class PopcornSMPPlugin extends JavaPlugin implements Listener, Comm
                 .clickEvent(ClickEvent.runCommand("/tpdeny"))
                 .hoverEvent(HoverEvent.showText(Component.text("Teleport ablehnen", NamedTextColor.RED)));
 
+        Component buttonLine = Component.text()
+                .append(Component.text("                         "))
+                .append(acceptButton)
+                .append(Component.text(" "))
+                .append(denyButton)
+                .build();
+
         return Component.text()
                 .append(separator)
                 .append(Component.newline())
@@ -396,10 +432,7 @@ public final class PopcornSMPPlugin extends JavaPlugin implements Listener, Comm
                 .append(Component.text(" möchte sich zu dir teleportieren.", NamedTextColor.GRAY))
                 .append(Component.newline())
                 .append(Component.newline())
-                .append(LEGACY_SERIALIZER.deserialize(PREFIX))
-                .append(acceptButton)
-                .append(Component.text(" "))
-                .append(denyButton)
+                .append(buttonLine)
                 .append(Component.newline())
                 .append(Component.newline())
                 .append(LEGACY_SERIALIZER.deserialize(PREFIX))
@@ -438,6 +471,10 @@ public final class PopcornSMPPlugin extends JavaPlugin implements Listener, Comm
         world.getChunkAtAsync(target.getBlockX() >> 4, target.getBlockZ() >> 4).thenAccept(chunk ->
                 Bukkit.getScheduler().runTask(this, () -> {
                     player.teleport(target);
+                    if (randomSpawn && !player.hasPlayedBefore()) {
+                        firstSpawnLocations.put(player.getUniqueId(), target.clone());
+                        player.setRespawnLocation(target, true);
+                    }
                     sendWelcomeExperience(player, target, randomSpawn);
                 })
         ).exceptionally(throwable -> {
