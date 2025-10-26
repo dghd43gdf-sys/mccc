@@ -457,7 +457,16 @@ public final class PopcornSMPPlugin extends JavaPlugin implements Listener, Comm
             int x = random.nextInt(SPAWN_RADIUS * 2 + 1) - SPAWN_RADIUS;
             int z = random.nextInt(SPAWN_RADIUS * 2 + 1) - SPAWN_RADIUS;
 
-            int y = world.getHighestBlockYAt(x, z);
+            int y;
+            if (world.getEnvironment() == World.Environment.NETHER) {
+                y = findSafeNetherY(world, x, z);
+                if (y == -1) {
+                    continue;
+                }
+            } else {
+                y = world.getHighestBlockYAt(x, z);
+            }
+
             Location candidate = new Location(world, x + 0.5, y, z + 0.5);
             Block blockBelow = world.getBlockAt(x, y - 1, z);
 
@@ -468,6 +477,23 @@ public final class PopcornSMPPlugin extends JavaPlugin implements Listener, Comm
 
         getLogger().warning("No safe spawn found within attempts; using world spawn location.");
         return null;
+    }
+
+    private int findSafeNetherY(World world, int x, int z) {
+        for (int y = 120; y >= 32; y--) {
+            Block block = world.getBlockAt(x, y, z);
+            Block blockAbove = world.getBlockAt(x, y + 1, z);
+            Block blockTwoAbove = world.getBlockAt(x, y + 2, z);
+            Block blockBelow = world.getBlockAt(x, y - 1, z);
+
+            if (isSafeBlock(blockBelow.getType()) &&
+                block.getType().isAir() &&
+                blockAbove.getType().isAir() &&
+                blockTwoAbove.getType().isAir()) {
+                return y;
+            }
+        }
+        return -1;
     }
 
     private boolean isSafeBlock(Material material) {
