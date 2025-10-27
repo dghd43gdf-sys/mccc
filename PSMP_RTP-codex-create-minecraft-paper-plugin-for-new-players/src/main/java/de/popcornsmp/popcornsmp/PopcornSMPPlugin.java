@@ -865,22 +865,31 @@ public final class PopcornSMPPlugin extends JavaPlugin implements Listener, Comm
             pendingHomeSlot.put(player.getUniqueId(), slot);
             waitingForHomeName.add(player.getUniqueId());
             player.sendMessage(PREFIX + ChatColor.GRAY + "Gib den Namen für dein Home ein (ä, ö, ü sind erlaubt):");
-        } else if (clicked.getType() == Material.RED_STAINED_GLASS_PANE && !homeManager.isSlotUnlocked(slot)) {
-            if (player.getInventory().containsAtLeast(new ItemStack(Material.DIAMOND), 32)) {
-                player.getInventory().removeItem(new ItemStack(Material.DIAMOND, 32));
-                homeManager.unlockSlot(slot);
-                homeStorage.savePlayerHomes(player.getUniqueId(), homeManager);
-                player.sendMessage(PREFIX + ChatColor.GRAY + "Slot erfolgreich für " + ChatColor.GOLD + "32 Diamanten" + ChatColor.GRAY + " gekauft!");
-                player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, SoundCategory.MASTER, 1.0f, 1.0f);
-                player.closeInventory();
-                Bukkit.getScheduler().runTaskLater(this, () -> {
-                    Inventory newGUI = HomeGUIManager.createHomeGUI(player, homeManager);
-                    player.openInventory(newGUI);
-                }, 1L);
-            } else {
-                player.sendMessage(PREFIX + ChatColor.RED + "Du benötigst 32 Diamanten um diesen Slot zu kaufen!");
-                player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, SoundCategory.MASTER, 1.0f, 1.0f);
+        } else if (clicked.getType() == Material.RED_STAINED_GLASS_PANE) {
+            PlayerHomeManager.SlotType slotType = PlayerHomeManager.getSlotType(slot);
+            if (slotType == PlayerHomeManager.SlotType.PURCHASABLE && !homeManager.isSlotUnlocked(slot)) {
+                if (player.getInventory().containsAtLeast(new ItemStack(Material.DIAMOND), 32)) {
+                    player.getInventory().removeItem(new ItemStack(Material.DIAMOND, 32));
+                    homeManager.unlockSlot(slot);
+                    homeStorage.savePlayerHomes(player.getUniqueId(), homeManager);
+                    player.sendMessage(PREFIX + ChatColor.GRAY + "Slot erfolgreich für " + ChatColor.GOLD + "32 Diamanten" + ChatColor.GRAY + " gekauft!");
+                    player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, SoundCategory.MASTER, 1.0f, 1.0f);
+                    player.closeInventory();
+                    Bukkit.getScheduler().runTaskLater(this, () -> {
+                        Inventory newGUI = HomeGUIManager.createHomeGUI(player, homeManager);
+                        player.openInventory(newGUI);
+                    }, 1L);
+                } else {
+                    player.sendMessage(PREFIX + ChatColor.RED + "Du benötigst 32 Diamanten um diesen Slot zu kaufen!");
+                    player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, SoundCategory.MASTER, 1.0f, 1.0f);
+                }
             }
+        } else if (clicked.getType() == Material.PURPLE_STAINED_GLASS_PANE) {
+            player.sendMessage(PREFIX + ChatColor.RED + "Dieser Slot benötigt den " + ChatColor.LIGHT_PURPLE + "Elite Rang" + ChatColor.RED + "!");
+            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, SoundCategory.MASTER, 1.0f, 1.0f);
+        } else if (clicked.getType() == Material.ORANGE_STAINED_GLASS_PANE) {
+            player.sendMessage(PREFIX + ChatColor.RED + "Dieser Slot benötigt den " + ChatColor.GOLD + "Popcorn Rang" + ChatColor.RED + "!");
+            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, SoundCategory.MASTER, 1.0f, 1.0f);
         }
     }
 

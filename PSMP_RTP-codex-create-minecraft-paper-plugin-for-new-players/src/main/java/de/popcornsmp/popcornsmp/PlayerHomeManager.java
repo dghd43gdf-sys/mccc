@@ -74,7 +74,36 @@ public class PlayerHomeManager {
         return -1;
     }
 
+    public int getNextFreeSlotInRange(int start, int end) {
+        for (int i = start; i <= end; i++) {
+            if (unlockedSlots.contains(i) && !homes.containsKey(i)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     public int getHomeCount() {
         return homes.size();
+    }
+
+    public enum SlotType {
+        FREE,
+        PURCHASABLE,
+        ELITE,
+        POPCORN
+    }
+
+    public static SlotType getSlotType(int slot) {
+        if (slot < 7) {
+            return SlotType.FREE;
+        } else if (slot >= 7 && slot <= 8) {
+            return SlotType.PURCHASABLE;
+        } else if (slot >= 9 && slot <= 10) {
+            return SlotType.ELITE;
+        } else if (slot >= 11 && slot <= 13) {
+            return SlotType.POPCORN;
+        }
+        return SlotType.FREE;
     }
 }

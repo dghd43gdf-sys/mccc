@@ -21,6 +21,14 @@ public class HomeGUIManager {
     public static Inventory createHomeGUI(Player player, PlayerHomeManager homeManager) {
         Inventory inv = Bukkit.createInventory(null, 27, HOME_GUI_TITLE);
 
+        boolean hasElite = player.hasPermission("popcorn.rank.elite") ||
+                          player.hasPermission("popcorn.rank.popcorn") ||
+                          player.hasPermission("popcorn.rank.admin") ||
+                          player.hasPermission("popcorn.rank.owner");
+        boolean hasPopcorn = player.hasPermission("popcorn.rank.popcorn") ||
+                            player.hasPermission("popcorn.rank.admin") ||
+                            player.hasPermission("popcorn.rank.owner");
+
         for (int i = 0; i < 7; i++) {
             if (homeManager.hasHome(i)) {
                 HomeData home = homeManager.getHome(i);
@@ -55,6 +63,8 @@ public class HomeGUIManager {
         }
 
         for (int i = 7; i < 14; i++) {
+            PlayerHomeManager.SlotType slotType = PlayerHomeManager.getSlotType(i);
+
             if (homeManager.hasHome(i)) {
                 HomeData home = homeManager.getHome(i);
                 ItemStack item = new ItemStack(home.getIcon());
@@ -85,20 +95,84 @@ public class HomeGUIManager {
                 }
                 inv.setItem(i + 12, greenPane);
             } else {
-                ItemStack redPane = new ItemStack(Material.RED_STAINED_GLASS_PANE);
-                ItemMeta meta = redPane.getItemMeta();
-                if (meta != null) {
-                    meta.displayName(Component.text("Slot kaufen", NamedTextColor.RED)
-                            .decoration(TextDecoration.ITALIC, false));
-                    List<Component> lore = new ArrayList<>();
-                    lore.add(Component.text("Kosten: 32 Diamanten", NamedTextColor.GOLD)
-                            .decoration(TextDecoration.ITALIC, false));
-                    lore.add(Component.text("Klicke zum Kaufen", NamedTextColor.GRAY)
-                            .decoration(TextDecoration.ITALIC, false));
-                    meta.lore(lore);
-                    redPane.setItemMeta(meta);
+                if (slotType == PlayerHomeManager.SlotType.PURCHASABLE) {
+                    ItemStack redPane = new ItemStack(Material.RED_STAINED_GLASS_PANE);
+                    ItemMeta meta = redPane.getItemMeta();
+                    if (meta != null) {
+                        meta.displayName(Component.text("Slot kaufen", NamedTextColor.RED)
+                                .decoration(TextDecoration.ITALIC, false));
+                        List<Component> lore = new ArrayList<>();
+                        lore.add(Component.text("Kosten: 32 Diamanten", NamedTextColor.GOLD)
+                                .decoration(TextDecoration.ITALIC, false));
+                        lore.add(Component.text("Klicke zum Kaufen", NamedTextColor.GRAY)
+                                .decoration(TextDecoration.ITALIC, false));
+                        meta.lore(lore);
+                        redPane.setItemMeta(meta);
+                    }
+                    inv.setItem(i + 12, redPane);
+                } else if (slotType == PlayerHomeManager.SlotType.ELITE) {
+                    if (hasElite) {
+                        ItemStack purplePane = new ItemStack(Material.LIME_STAINED_GLASS_PANE);
+                        ItemMeta meta = purplePane.getItemMeta();
+                        if (meta != null) {
+                            meta.displayName(Component.text("Home setzen", NamedTextColor.GREEN)
+                                    .decoration(TextDecoration.ITALIC, false));
+                            List<Component> lore = new ArrayList<>();
+                            lore.add(Component.text("Elite Slot", NamedTextColor.LIGHT_PURPLE)
+                                    .decoration(TextDecoration.ITALIC, false));
+                            lore.add(Component.text("Klicke um ein Home zu setzen", NamedTextColor.GRAY)
+                                    .decoration(TextDecoration.ITALIC, false));
+                            meta.lore(lore);
+                            purplePane.setItemMeta(meta);
+                        }
+                        homeManager.unlockSlot(i);
+                        inv.setItem(i + 12, purplePane);
+                    } else {
+                        ItemStack purplePane = new ItemStack(Material.PURPLE_STAINED_GLASS_PANE);
+                        ItemMeta meta = purplePane.getItemMeta();
+                        if (meta != null) {
+                            meta.displayName(Component.text("Elite Slot", NamedTextColor.LIGHT_PURPLE)
+                                    .decoration(TextDecoration.ITALIC, false));
+                            List<Component> lore = new ArrayList<>();
+                            lore.add(Component.text("Benötigt Elite Rang", NamedTextColor.RED)
+                                    .decoration(TextDecoration.ITALIC, false));
+                            meta.lore(lore);
+                            purplePane.setItemMeta(meta);
+                        }
+                        inv.setItem(i + 12, purplePane);
+                    }
+                } else if (slotType == PlayerHomeManager.SlotType.POPCORN) {
+                    if (hasPopcorn) {
+                        ItemStack orangePane = new ItemStack(Material.LIME_STAINED_GLASS_PANE);
+                        ItemMeta meta = orangePane.getItemMeta();
+                        if (meta != null) {
+                            meta.displayName(Component.text("Home setzen", NamedTextColor.GREEN)
+                                    .decoration(TextDecoration.ITALIC, false));
+                            List<Component> lore = new ArrayList<>();
+                            lore.add(Component.text("Popcorn Slot", NamedTextColor.GOLD)
+                                    .decoration(TextDecoration.ITALIC, false));
+                            lore.add(Component.text("Klicke um ein Home zu setzen", NamedTextColor.GRAY)
+                                    .decoration(TextDecoration.ITALIC, false));
+                            meta.lore(lore);
+                            orangePane.setItemMeta(meta);
+                        }
+                        homeManager.unlockSlot(i);
+                        inv.setItem(i + 12, orangePane);
+                    } else {
+                        ItemStack orangePane = new ItemStack(Material.ORANGE_STAINED_GLASS_PANE);
+                        ItemMeta meta = orangePane.getItemMeta();
+                        if (meta != null) {
+                            meta.displayName(Component.text("Popcorn Slot", NamedTextColor.GOLD)
+                                    .decoration(TextDecoration.ITALIC, false));
+                            List<Component> lore = new ArrayList<>();
+                            lore.add(Component.text("Benötigt Popcorn Rang", NamedTextColor.RED)
+                                    .decoration(TextDecoration.ITALIC, false));
+                            meta.lore(lore);
+                            orangePane.setItemMeta(meta);
+                        }
+                        inv.setItem(i + 12, orangePane);
+                    }
                 }
-                inv.setItem(i + 12, redPane);
             }
         }
 
