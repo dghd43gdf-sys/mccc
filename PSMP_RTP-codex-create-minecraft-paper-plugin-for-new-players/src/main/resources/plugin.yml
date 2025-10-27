@@ -17,3 +17,15 @@ commands:
   tpdeny:
     description: Lehnt die letzte Teleportanfrage ab.
     usage: /tpdeny
+  home:
+    description: Öffnet das Home-Menü oder teleportiert zu einem Home.
+    usage: /home [Name]
+  sethome:
+    description: Setzt ein Home an deiner aktuellen Position.
+    usage: /sethome <Name>
+  delhome:
+    description: Löscht ein bestehendes Home.
+    usage: /delhome <Name>
+  homes:
+    description: Zeigt eine Liste all deiner Homes an.
+    usage: /homes

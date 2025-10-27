@@ -71,31 +71,53 @@ public final class PopcornSMPPlugin extends JavaPlugin implements Listener, Comm
     private final Map<UUID, TeleportRequest> incomingTeleportRequests = new ConcurrentHashMap<>();
     private final Map<UUID, TeleportRequest> outgoingTeleportRequests = new ConcurrentHashMap<>();
     private final Map<UUID, Location> firstSpawnLocations = new ConcurrentHashMap<>();
+    private final Map<UUID, PlayerHomeManager> playerHomes = new ConcurrentHashMap<>();
+    private final Map<UUID, Integer> pendingHomeSlot = new ConcurrentHashMap<>();
+    private final Map<UUID, String> pendingHomeName = new ConcurrentHashMap<>();
+    private final Set<UUID> waitingForHomeName = ConcurrentHashMap.newKeySet();
+    private HomeStorageManager homeStorage;
 
     @Override
     public void onEnable() {
         Bukkit.getPluginManager().registerEvents(this, this);
+        homeStorage = new HomeStorageManager(getDataFolder(), getLogger());
+
         Objects.requireNonNull(getCommand("rtp"), "Command /rtp not defined in plugin.yml").setExecutor(this);
         Objects.requireNonNull(getCommand("tpa"), "Command /tpa not defined in plugin.yml").setExecutor(this);
         Objects.requireNonNull(getCommand("tpaccept"), "Command /tpaccept not defined in plugin.yml").setExecutor(this);
         Objects.requireNonNull(getCommand("tpdeny"), "Command /tpdeny not defined in plugin.yml").setExecutor(this);
+        Objects.requireNonNull(getCommand("home"), "Command /home not defined in plugin.yml").setExecutor(this);
+        Objects.requireNonNull(getCommand("sethome"), "Command /sethome not defined in plugin.yml").setExecutor(this);
+        Objects.requireNonNull(getCommand("delhome"), "Command /delhome not defined in plugin.yml").setExecutor(this);
+        Objects.requireNonNull(getCommand("homes"), "Command /homes not defined in plugin.yml").setExecutor(this);
         getLogger().info("PopcornSMP plugin enabled.");
     }
 
     @Override
     public void onDisable() {
+        for (Map.Entry<UUID, PlayerHomeManager> entry : playerHomes.entrySet()) {
+            homeStorage.savePlayerHomes(entry.getKey(), entry.getValue());
+        }
+
         pendingTeleportTasks.values().forEach(BukkitTask::cancel);
         pendingTeleportTasks.clear();
         frozenAnchors.clear();
         incomingTeleportRequests.clear();
         outgoingTeleportRequests.clear();
         firstSpawnLocations.clear();
+        playerHomes.clear();
+        pendingHomeSlot.clear();
+        pendingHomeName.clear();
+        waitingForHomeName.clear();
     }
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         event.joinMessage(buildJoinQuitMessage(player, ChatColor.GREEN, "BETRETEN"));
+
+        PlayerHomeManager homeManager = homeStorage.loadPlayerHomes(player.getUniqueId());
+        playerHomes.put(player.getUniqueId(), homeManager);
 
         if (!player.hasPlayedBefore()) {
             World world = Objects.requireNonNull(Bukkit.getWorlds().get(0), "No default world loaded");
@@ -114,7 +136,17 @@ public final class PopcornSMPPlugin extends JavaPlugin implements Listener, Comm
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         event.quitMessage(buildJoinQuitMessage(event.getPlayer(), ChatColor.RED, "VERLASSEN"));
-        firstSpawnLocations.remove(event.getPlayer().getUniqueId());
+        UUID playerId = event.getPlayer().getUniqueId();
+        firstSpawnLocations.remove(playerId);
+
+        PlayerHomeManager homeManager = playerHomes.remove(playerId);
+        if (homeManager != null) {
+            homeStorage.savePlayerHomes(playerId, homeManager);
+        }
+
+        pendingHomeSlot.remove(playerId);
+        pendingHomeName.remove(playerId);
+        waitingForHomeName.remove(playerId);
     }
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -178,6 +210,10 @@ public final class PopcornSMPPlugin extends JavaPlugin implements Listener, Comm
             case "tpa" -> handleTeleportRequestCommand(sender, args);
             case "tpaccept" -> handleTeleportAcceptCommand(sender);
             case "tpdeny" -> handleTeleportDenyCommand(sender);
+            case "home" -> handleHomeCommand(sender, args);
+            case "sethome" -> handleSetHomeCommand(sender, args);
+            case "delhome" -> handleDelHomeCommand(sender, args);
+            case "homes" -> handleHomesListCommand(sender);
             default -> false;
         };
     }
@@ -648,6 +684,279 @@ public final class PopcornSMPPlugin extends JavaPlugin implements Listener, Comm
             task.cancel();
         }
         frozenAnchors.remove(playerId);
+    }
+
+    private boolean handleHomeCommand(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(ChatColor.RED + "Nur Spieler können diesen Befehl verwenden.");
+            return true;
+        }
+
+        PlayerHomeManager homeManager = playerHomes.computeIfAbsent(player.getUniqueId(), k -> new PlayerHomeManager());
+
+        if (args.length == 0) {
+            Inventory homeGUI = HomeGUIManager.createHomeGUI(player, homeManager);
+            player.openInventory(homeGUI);
+        } else {
+            String homeName = args[0];
+            HomeData home = homeManager.getHomeByName(homeName);
+
+            if (home == null) {
+                player.sendMessage(PREFIX + ChatColor.RED + "Home " + ChatColor.GOLD + homeName + ChatColor.RED + " nicht gefunden.");
+                return true;
+            }
+
+            if (pendingTeleportTasks.containsKey(player.getUniqueId())) {
+                player.sendMessage(PREFIX + ChatColor.RED + "Ein Teleport läuft bereits – bitte warte einen Moment.");
+                return true;
+            }
+
+            startTeleportCountdown(player, () -> teleportToHome(player, home));
+        }
+
+        return true;
+    }
+
+    private boolean handleSetHomeCommand(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(ChatColor.RED + "Nur Spieler können diesen Befehl verwenden.");
+            return true;
+        }
+
+        if (args.length == 0) {
+            player.sendMessage(PREFIX + ChatColor.RED + "Verwendung: /sethome <Name>");
+            return true;
+        }
+
+        String homeName = args[0];
+        PlayerHomeManager homeManager = playerHomes.computeIfAbsent(player.getUniqueId(), k -> new PlayerHomeManager());
+
+        if (homeManager.getHomeByName(homeName) != null) {
+            player.sendMessage(PREFIX + ChatColor.RED + "Ein Home mit diesem Namen existiert bereits.");
+            return true;
+        }
+
+        int freeSlot = homeManager.getNextFreeSlot();
+        if (freeSlot == -1) {
+            player.sendMessage(PREFIX + ChatColor.RED + "Du hast keine freien Home-Slots mehr. Kaufe weitere Slots mit /home.");
+            return true;
+        }
+
+        HomeData home = new HomeData(homeName, player.getLocation().clone(), Material.RED_BED);
+        homeManager.setHome(freeSlot, home);
+        homeStorage.savePlayerHomes(player.getUniqueId(), homeManager);
+
+        player.sendMessage(PREFIX + ChatColor.GRAY + "Home " + ChatColor.GOLD + homeName + ChatColor.GRAY + " wurde gesetzt!");
+        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, SoundCategory.MASTER, 1.0f, 1.0f);
+
+        return true;
+    }
+
+    private boolean handleDelHomeCommand(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(ChatColor.RED + "Nur Spieler können diesen Befehl verwenden.");
+            return true;
+        }
+
+        if (args.length == 0) {
+            player.sendMessage(PREFIX + ChatColor.RED + "Verwendung: /delhome <Name>");
+            return true;
+        }
+
+        String homeName = args[0];
+        PlayerHomeManager homeManager = playerHomes.get(player.getUniqueId());
+
+        if (homeManager == null || homeManager.getHomeByName(homeName) == null) {
+            player.sendMessage(PREFIX + ChatColor.RED + "Home " + ChatColor.GOLD + homeName + ChatColor.RED + " nicht gefunden.");
+            return true;
+        }
+
+        homeManager.removeHomeByName(homeName);
+        homeStorage.savePlayerHomes(player.getUniqueId(), homeManager);
+
+        player.sendMessage(PREFIX + ChatColor.GRAY + "Home " + ChatColor.GOLD + homeName + ChatColor.GRAY + " wurde gelöscht.");
+        player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, SoundCategory.MASTER, 1.0f, 1.0f);
+
+        return true;
+    }
+
+    private boolean handleHomesListCommand(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(ChatColor.RED + "Nur Spieler können diesen Befehl verwenden.");
+            return true;
+        }
+
+        PlayerHomeManager homeManager = playerHomes.get(player.getUniqueId());
+
+        if (homeManager == null || homeManager.getHomeCount() == 0) {
+            player.sendMessage(PREFIX + ChatColor.RED + "Du hast keine Homes gesetzt.");
+            return true;
+        }
+
+        player.sendMessage(PREFIX + ChatColor.GRAY + "Deine Homes:");
+        for (Map.Entry<Integer, HomeData> entry : homeManager.getAllHomes().entrySet()) {
+            HomeData home = entry.getValue();
+            Location loc = home.getLocation();
+            player.sendMessage(ChatColor.GOLD + "  • " + home.getName() + ChatColor.GRAY + " (" +
+                    ChatColor.YELLOW + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + ChatColor.GRAY + ")");
+        }
+
+        return true;
+    }
+
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) {
+            return;
+        }
+
+        String title = event.getView().getTitle();
+
+        if (title.equals("§6§lDeine Homes")) {
+            event.setCancelled(true);
+            handleHomeGUIClick(player, event);
+        } else if (title.equals("§6§lWähle ein Icon")) {
+            event.setCancelled(true);
+            handleIconSelectionClick(player, event);
+        }
+    }
+
+    private void handleHomeGUIClick(Player player, InventoryClickEvent event) {
+        ItemStack clicked = event.getCurrentItem();
+        if (clicked == null || clicked.getType() == Material.AIR) {
+            return;
+        }
+
+        int slot = HomeGUIManager.getSlotFromInventorySlot(event.getSlot());
+        if (slot == -1) {
+            return;
+        }
+
+        PlayerHomeManager homeManager = playerHomes.get(player.getUniqueId());
+        if (homeManager == null) {
+            return;
+        }
+
+        if (homeManager.hasHome(slot)) {
+            if (event.getClick() == ClickType.SHIFT_RIGHT) {
+                homeManager.removeHome(slot);
+                homeStorage.savePlayerHomes(player.getUniqueId(), homeManager);
+                player.sendMessage(PREFIX + ChatColor.GRAY + "Home wurde gelöscht.");
+                player.closeInventory();
+                Bukkit.getScheduler().runTaskLater(this, () -> {
+                    Inventory newGUI = HomeGUIManager.createHomeGUI(player, homeManager);
+                    player.openInventory(newGUI);
+                }, 1L);
+            } else {
+                player.closeInventory();
+                HomeData home = homeManager.getHome(slot);
+                if (pendingTeleportTasks.containsKey(player.getUniqueId())) {
+                    player.sendMessage(PREFIX + ChatColor.RED + "Ein Teleport läuft bereits – bitte warte einen Moment.");
+                    return;
+                }
+                startTeleportCountdown(player, () -> teleportToHome(player, home));
+            }
+        } else if (clicked.getType() == Material.LIME_STAINED_GLASS_PANE && homeManager.isSlotUnlocked(slot)) {
+            player.closeInventory();
+            pendingHomeSlot.put(player.getUniqueId(), slot);
+            waitingForHomeName.add(player.getUniqueId());
+            player.sendMessage(PREFIX + ChatColor.GRAY + "Gib den Namen für dein Home ein (ä, ö, ü sind erlaubt):");
+        } else if (clicked.getType() == Material.RED_STAINED_GLASS_PANE && !homeManager.isSlotUnlocked(slot)) {
+            if (player.getInventory().containsAtLeast(new ItemStack(Material.DIAMOND), 32)) {
+                player.getInventory().removeItem(new ItemStack(Material.DIAMOND, 32));
+                homeManager.unlockSlot(slot);
+                homeStorage.savePlayerHomes(player.getUniqueId(), homeManager);
+                player.sendMessage(PREFIX + ChatColor.GRAY + "Slot erfolgreich für " + ChatColor.GOLD + "32 Diamanten" + ChatColor.GRAY + " gekauft!");
+                player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, SoundCategory.MASTER, 1.0f, 1.0f);
+                player.closeInventory();
+                Bukkit.getScheduler().runTaskLater(this, () -> {
+                    Inventory newGUI = HomeGUIManager.createHomeGUI(player, homeManager);
+                    player.openInventory(newGUI);
+                }, 1L);
+            } else {
+                player.sendMessage(PREFIX + ChatColor.RED + "Du benötigst 32 Diamanten um diesen Slot zu kaufen!");
+                player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, SoundCategory.MASTER, 1.0f, 1.0f);
+            }
+        }
+    }
+
+    private void handleIconSelectionClick(Player player, InventoryClickEvent event) {
+        ItemStack clicked = event.getCurrentItem();
+        if (clicked == null || clicked.getType() == Material.AIR) {
+            return;
+        }
+
+        String homeName = pendingHomeName.remove(player.getUniqueId());
+        Integer slot = pendingHomeSlot.remove(player.getUniqueId());
+
+        if (homeName == null || slot == null) {
+            player.closeInventory();
+            return;
+        }
+
+        PlayerHomeManager homeManager = playerHomes.get(player.getUniqueId());
+        if (homeManager == null) {
+            player.closeInventory();
+            return;
+        }
+
+        Material icon = clicked.getType();
+        HomeData home = new HomeData(homeName, player.getLocation().clone(), icon);
+        homeManager.setHome(slot, home);
+        homeStorage.savePlayerHomes(player.getUniqueId(), homeManager);
+
+        player.closeInventory();
+        player.sendMessage(PREFIX + ChatColor.GRAY + "Home " + ChatColor.GOLD + homeName + ChatColor.GRAY + " wurde gesetzt!");
+        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, SoundCategory.MASTER, 1.0f, 1.0f);
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onPlayerChat(AsyncPlayerChatEvent event) {
+        Player player = event.getPlayer();
+        UUID playerId = player.getUniqueId();
+
+        if (waitingForHomeName.contains(playerId)) {
+            event.setCancelled(true);
+            String homeName = event.getMessage();
+
+            waitingForHomeName.remove(playerId);
+            pendingHomeName.put(playerId, homeName);
+
+            Bukkit.getScheduler().runTask(this, () -> {
+                player.sendMessage(PREFIX + ChatColor.GRAY + "Wähle nun ein Icon für dein Home:");
+                Inventory iconGUI = HomeGUIManager.createIconSelectionGUI();
+                player.openInventory(iconGUI);
+            });
+        }
+    }
+
+    private void teleportToHome(Player player, HomeData home) {
+        if (!player.isOnline()) {
+            return;
+        }
+
+        Location target = home.getLocation();
+        World world = target.getWorld();
+
+        if (world == null) {
+            player.sendMessage(PREFIX + ChatColor.RED + "Teleport fehlgeschlagen: Welt nicht gefunden.");
+            return;
+        }
+
+        world.getChunkAtAsync(target.getBlockX() >> 4, target.getBlockZ() >> 4).thenAccept(chunk ->
+                Bukkit.getScheduler().runTask(this, () -> {
+                    player.teleport(target);
+                    player.sendMessage(PREFIX + ChatColor.GRAY + "Du wurdest zu deinem Home " + ChatColor.GOLD + home.getName()
+                            + ChatColor.GRAY + " teleportiert.");
+                    player.playSound(player.getLocation(), TELEPORT_SOUND, SoundCategory.MASTER,
+                            TELEPORT_SOUND_VOLUME, TELEPORT_SOUND_PITCH);
+                })
+        ).exceptionally(throwable -> {
+            getLogger().warning("Failed to prepare chunk for home teleport: " + throwable.getMessage());
+            Bukkit.getScheduler().runTask(this, () -> player.sendMessage(PREFIX + ChatColor.RED
+                    + "Teleport fehlgeschlagen. Bitte versuche es erneut."));
+            return null;
+        });
     }
 
     private static final class TeleportRequest {
