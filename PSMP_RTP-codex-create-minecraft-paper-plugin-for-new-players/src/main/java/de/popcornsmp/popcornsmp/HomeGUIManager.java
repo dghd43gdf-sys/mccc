@@ -38,6 +38,10 @@ public class HomeGUIManager {
                     meta.displayName(Component.text(home.getName(), NamedTextColor.GOLD)
                             .decoration(TextDecoration.ITALIC, false));
                     List<Component> lore = new ArrayList<>();
+                    lore.add(Component.text("Standard Slot", NamedTextColor.GREEN)
+                            .decoration(TextDecoration.ITALIC, false));
+                    lore.add(Component.text("", NamedTextColor.GRAY)
+                            .decoration(TextDecoration.ITALIC, false));
                     lore.add(Component.text("Klicke zum Teleportieren", NamedTextColor.GRAY)
                             .decoration(TextDecoration.ITALIC, false));
                     lore.add(Component.text("Shift + Rechtsklick zum Löschen", NamedTextColor.RED)
@@ -53,6 +57,10 @@ public class HomeGUIManager {
                     meta.displayName(Component.text("Home setzen", NamedTextColor.GREEN)
                             .decoration(TextDecoration.ITALIC, false));
                     List<Component> lore = new ArrayList<>();
+                    lore.add(Component.text("Standard Slot", NamedTextColor.GREEN)
+                            .decoration(TextDecoration.ITALIC, false));
+                    lore.add(Component.text("", NamedTextColor.GRAY)
+                            .decoration(TextDecoration.ITALIC, false));
                     lore.add(Component.text("Klicke um ein Home zu setzen", NamedTextColor.GRAY)
                             .decoration(TextDecoration.ITALIC, false));
                     meta.lore(lore);
@@ -73,6 +81,20 @@ public class HomeGUIManager {
                     meta.displayName(Component.text(home.getName(), NamedTextColor.GOLD)
                             .decoration(TextDecoration.ITALIC, false));
                     List<Component> lore = new ArrayList<>();
+
+                    if (slotType == PlayerHomeManager.SlotType.PURCHASABLE) {
+                        lore.add(Component.text("Gekaufter Slot", NamedTextColor.RED)
+                                .decoration(TextDecoration.ITALIC, false));
+                    } else if (slotType == PlayerHomeManager.SlotType.ELITE) {
+                        lore.add(Component.text("Elite Slot", NamedTextColor.LIGHT_PURPLE)
+                                .decoration(TextDecoration.ITALIC, false));
+                    } else if (slotType == PlayerHomeManager.SlotType.POPCORN) {
+                        lore.add(Component.text("Popcorn Slot", NamedTextColor.GOLD)
+                                .decoration(TextDecoration.ITALIC, false));
+                    }
+
+                    lore.add(Component.text("", NamedTextColor.GRAY)
+                            .decoration(TextDecoration.ITALIC, false));
                     lore.add(Component.text("Klicke zum Teleportieren", NamedTextColor.GRAY)
                             .decoration(TextDecoration.ITALIC, false));
                     lore.add(Component.text("Shift + Rechtsklick zum Löschen", NamedTextColor.RED)
@@ -88,6 +110,20 @@ public class HomeGUIManager {
                     meta.displayName(Component.text("Home setzen", NamedTextColor.GREEN)
                             .decoration(TextDecoration.ITALIC, false));
                     List<Component> lore = new ArrayList<>();
+
+                    if (slotType == PlayerHomeManager.SlotType.PURCHASABLE) {
+                        lore.add(Component.text("Gekaufter Slot", NamedTextColor.RED)
+                                .decoration(TextDecoration.ITALIC, false));
+                    } else if (slotType == PlayerHomeManager.SlotType.ELITE) {
+                        lore.add(Component.text("Elite Slot", NamedTextColor.LIGHT_PURPLE)
+                                .decoration(TextDecoration.ITALIC, false));
+                    } else if (slotType == PlayerHomeManager.SlotType.POPCORN) {
+                        lore.add(Component.text("Popcorn Slot", NamedTextColor.GOLD)
+                                .decoration(TextDecoration.ITALIC, false));
+                    }
+
+                    lore.add(Component.text("", NamedTextColor.GRAY)
+                            .decoration(TextDecoration.ITALIC, false));
                     lore.add(Component.text("Klicke um ein Home zu setzen", NamedTextColor.GRAY)
                             .decoration(TextDecoration.ITALIC, false));
                     meta.lore(lore);
