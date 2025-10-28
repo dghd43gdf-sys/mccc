@@ -19,7 +19,7 @@ public class HomeGUIManager {
     private static final String ICON_GUI_TITLE = "§6§lWähle ein Icon";
 
     public static Inventory createHomeGUI(Player player, PlayerHomeManager homeManager) {
-        Inventory inv = Bukkit.createInventory(null, 27, HOME_GUI_TITLE);
+        Inventory inv = Bukkit.createInventory(null, 36, HOME_GUI_TITLE);
 
         boolean hasElite = player.hasPermission("popcorn.rank.elite") ||
                           player.hasPermission("popcorn.rank.popcorn") ||
@@ -254,6 +254,8 @@ public class HomeGUIManager {
             return inventorySlot - 10;
         } else if (inventorySlot >= 19 && inventorySlot <= 25) {
             return inventorySlot - 12;
+        } else if (inventorySlot >= 28 && inventorySlot <= 34) {
+            return inventorySlot - 14;
         }
         return -1;
     }
