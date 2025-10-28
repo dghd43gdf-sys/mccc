@@ -39,7 +39,8 @@ public class HomeGUIManager {
                             .decoration(TextDecoration.ITALIC, false));
                     List<Component> lore = new ArrayList<>();
                     lore.add(Component.text("Standard Slot", NamedTextColor.GREEN)
-                            .decoration(TextDecoration.ITALIC, false));
+                            .decoration(TextDecoration.ITALIC, false)
+                            .decoration(TextDecoration.BOLD, true));
                     lore.add(Component.text("", NamedTextColor.GRAY)
                             .decoration(TextDecoration.ITALIC, false));
                     lore.add(Component.text("Klicke zum Teleportieren", NamedTextColor.GRAY)
@@ -58,7 +59,8 @@ public class HomeGUIManager {
                             .decoration(TextDecoration.ITALIC, false));
                     List<Component> lore = new ArrayList<>();
                     lore.add(Component.text("Standard Slot", NamedTextColor.GREEN)
-                            .decoration(TextDecoration.ITALIC, false));
+                            .decoration(TextDecoration.ITALIC, false)
+                            .decoration(TextDecoration.BOLD, true));
                     lore.add(Component.text("", NamedTextColor.GRAY)
                             .decoration(TextDecoration.ITALIC, false));
                     lore.add(Component.text("Klicke um ein Home zu setzen", NamedTextColor.GRAY)
@@ -84,13 +86,16 @@ public class HomeGUIManager {
 
                     if (slotType == PlayerHomeManager.SlotType.PURCHASABLE) {
                         lore.add(Component.text("Gekaufter Slot", NamedTextColor.RED)
-                                .decoration(TextDecoration.ITALIC, false));
+                                .decoration(TextDecoration.ITALIC, false)
+                                .decoration(TextDecoration.BOLD, true));
                     } else if (slotType == PlayerHomeManager.SlotType.ELITE) {
                         lore.add(Component.text("Elite Slot", NamedTextColor.LIGHT_PURPLE)
-                                .decoration(TextDecoration.ITALIC, false));
+                                .decoration(TextDecoration.ITALIC, false)
+                                .decoration(TextDecoration.BOLD, true));
                     } else if (slotType == PlayerHomeManager.SlotType.POPCORN) {
                         lore.add(Component.text("Popcorn Slot", NamedTextColor.GOLD)
-                                .decoration(TextDecoration.ITALIC, false));
+                                .decoration(TextDecoration.ITALIC, false)
+                                .decoration(TextDecoration.BOLD, true));
                     }
 
                     lore.add(Component.text("", NamedTextColor.GRAY)
@@ -113,13 +118,16 @@ public class HomeGUIManager {
 
                     if (slotType == PlayerHomeManager.SlotType.PURCHASABLE) {
                         lore.add(Component.text("Gekaufter Slot", NamedTextColor.RED)
-                                .decoration(TextDecoration.ITALIC, false));
+                                .decoration(TextDecoration.ITALIC, false)
+                                .decoration(TextDecoration.BOLD, true));
                     } else if (slotType == PlayerHomeManager.SlotType.ELITE) {
                         lore.add(Component.text("Elite Slot", NamedTextColor.LIGHT_PURPLE)
-                                .decoration(TextDecoration.ITALIC, false));
+                                .decoration(TextDecoration.ITALIC, false)
+                                .decoration(TextDecoration.BOLD, true));
                     } else if (slotType == PlayerHomeManager.SlotType.POPCORN) {
                         lore.add(Component.text("Popcorn Slot", NamedTextColor.GOLD)
-                                .decoration(TextDecoration.ITALIC, false));
+                                .decoration(TextDecoration.ITALIC, false)
+                                .decoration(TextDecoration.BOLD, true));
                     }
 
                     lore.add(Component.text("", NamedTextColor.GRAY)
